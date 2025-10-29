@@ -1,10 +1,13 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.responses import FileResponse
-from db import SessionLocal, engine
+from db import SessionLocal, engine, get_db
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 from models import Base, Country
 from tasks import refresh_countries
 from datetime import datetime
 import os
+import requests
 
 app = FastAPI()
 
@@ -76,9 +79,10 @@ def get_status():
         "last_refreshed_at": last[0].isoformat() if last and last[0] else None
     }
 
+from fastapi import Query
 
 @app.get("/countries/image")
-def get_image():
+def get_summary_image():
     image_path = os.path.join("cache", "summary.png")
     if not os.path.exists(image_path):
         raise HTTPException(status_code=404, detail={"error": "Summary image not found"})

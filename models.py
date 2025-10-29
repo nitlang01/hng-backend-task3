@@ -1,17 +1,17 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime
-from sqlalchemy.sql import func
+from datetime import datetime
 from db import Base
 
 class Country(Base):
     __tablename__ = "countries"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False, unique=True)
-    capital = Column(String(255))
-    region = Column(String(255))
+    name = Column(String, unique=True, nullable=False)
+    capital = Column(String, nullable=True)
+    region = Column(String, nullable=True)
     population = Column(Integer, nullable=False)
-    currency_code = Column(String(10))
-    exchange_rate = Column(Float)        # may be null
-    estimated_gdp = Column(Float)        # may be null or 0
-    flag_url = Column(String(512))
-    last_refreshed_at = Column(DateTime(timezone=True))
+    currency_code = Column(String, nullable=True)
+    exchange_rate = Column(Float, nullable=True)
+    estimated_gdp = Column(Float, nullable=True)
+    flag_url = Column(String, nullable=True)
+    last_refreshed_at = Column(DateTime, default=datetime.utcnow)
