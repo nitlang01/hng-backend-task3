@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+httpx
+sqlalchemy
+pymysql           # if you will use MySQL on Railway; for local SQLite it's okay to omit
+python-dotenv
+pillow
+alembic            # optional (migrations) 
