@@ -1,77 +1,85 @@
-from dotenv import load_dotenv
-load_dotenv()  # MUST be first
-import os
-from fastapi import FastAPI, HTTPException, Query, Response
-from fastapi.responses import FileResponse, JSONResponse
-from db import engine, Base, SessionLocal
-from models import Country
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from db import SessionLocal, engine
+from models import Base, Country
 from tasks import refresh_countries
-from utils import serialize_country
+from datetime import datetime
+import os
 
-app = FastAPI(title="Country Currency & Exchange API")
+app = FastAPI()
+
 
 Base.metadata.create_all(bind=engine)
 
 @app.post("/countries/refresh")
-def post_refresh():
-    payload, status = refresh_countries()
-    return JSONResponse(content=payload, status_code=status)
+def refresh():
+    try:
+        result = refresh_countries()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=503, detail={"error": str(e)})
+
 
 @app.get("/countries")
-def list_countries(region: str = None, currency: str = None, sort: str = None, limit: int = Query(None, ge=0)):
+def get_countries(
+    region: str = Query(None),
+    currency: str = Query(None),
+    sort: str = Query(None)
+):
     db = SessionLocal()
-    try:
-        q = db.query(Country)
-        if region:
-            q = q.filter(Country.region == region)
-        if currency:
-            q = q.filter(Country.currency_code == currency)
-        if sort == "gdp_desc":
-            q = q.order_by(Country.estimated_gdp.desc().nullslast())
-        if limit:
-            q = q.limit(limit)
-        rows = q.all()
-        return [serialize_country(r) for r in rows]
-    finally:
-        db.close()
+    query = db.query(Country)
+
+    if region:
+        query = query.filter(Country.region.ilike(f"%{region}%"))
+    if currency:
+        query = query.filter(Country.currency_code == currency)
+
+    if sort == "gdp_desc":
+        query = query.order_by(Country.estimated_gdp.desc())
+
+    countries = query.all()
+    db.close()
+    return countries
+
 
 @app.get("/countries/{name}")
 def get_country(name: str):
     db = SessionLocal()
-    try:
-        c = db.query(Country).filter(Country.name.ilike(name)).first()
-        if not c:
-            raise HTTPException(status_code=404, detail={"error": "Country not found"})
-        return serialize_country(c)
-    finally:
-        db.close()
+    country = db.query(Country).filter(Country.name.ilike(name)).first()
+    db.close()
+    if not country:
+        raise HTTPException(status_code=404, detail={"error": "Country not found"})
+    return country
 
-@app.delete("/countries/{name}", status_code=204)
+
+@app.delete("/countries/{name}")
 def delete_country(name: str):
     db = SessionLocal()
-    try:
-        c = db.query(Country).filter(Country.name.ilike(name)).first()
-        if not c:
-            raise HTTPException(status_code=404, detail={"error": "Country not found"})
-        db.delete(c)
-        db.commit()
-        return Response(status_code=204)
-    finally:
+    country = db.query(Country).filter(Country.name.ilike(name)).first()
+    if not country:
         db.close()
+        raise HTTPException(status_code=404, detail={"error": "Country not found"})
+    db.delete(country)
+    db.commit()
+    db.close()
+    return {"message": f"{name} deleted successfully"}
+
 
 @app.get("/status")
-def status():
+def get_status():
     db = SessionLocal()
-    try:
-        total = db.query(Country).count()
-        last = db.query(Country).order_by(Country.last_refreshed_at.desc()).first()
-        return {"total_countries": total, "last_refreshed_at": last.last_refreshed_at.isoformat() if last and last.last_refreshed_at else None}
-    finally:
-        db.close()
+    total = db.query(Country).count()
+    last = db.query(Country.last_refreshed_at).order_by(Country.last_refreshed_at.desc()).first()
+    db.close()
+    return {
+        "total_countries": total,
+        "last_refreshed_at": last[0].isoformat() if last and last[0] else None
+    }
+
 
 @app.get("/countries/image")
-def serve_image():
-    path = os.getenv("SUMMARY_IMAGE_PATH", "cache/summary.png")
-    if not os.path.exists(path):
-        return JSONResponse(status_code=404, content={"error": "Summary image not found"})
-    return FileResponse(path, media_type="image/png")
+def get_image():
+    image_path = os.path.join("cache", "summary.png")
+    if not os.path.exists(image_path):
+        raise HTTPException(status_code=404, detail={"error": "Summary image not found"})
+    return FileResponse(image_path, media_type="image/png")
