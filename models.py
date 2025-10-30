@@ -15,3 +15,4 @@ class Country(Base):
     estimated_gdp = Column(Float, nullable=True)
     flag_url = Column(String, nullable=True)
     last_refreshed_at = Column(DateTime, default=datetime.utcnow)
+    currency = Column(String, nullable=True)
